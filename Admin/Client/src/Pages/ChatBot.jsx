@@ -24,7 +24,7 @@ const ChatBot = () => {
   const messagesEndRef = useRef(null);
 
   // Initialize Hugging Face Inference client
-  const client = new HfInference(""); // Replace with your Hugging Face API key
+  const client = new HfInference("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"); // Replace with your Hugging Face API key
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
