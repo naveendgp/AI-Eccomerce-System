@@ -1,15 +1,116 @@
 import React, { useState, useRef, useEffect } from "react";
-import { HfInference } from "@huggingface/inference"; // Import Hugging Face API
+import axios from "axios";
 import {
-  Send,
   Bot,
   User,
   Paperclip,
   Image,
   MoreHorizontal,
+  Send,
 } from "lucide-react";
 
 const ChatBot = () => {
+
+  const productCategories = {
+    vegetables: [
+      "tomato",
+      "potato",
+      "onion",
+      "carrot",
+      "cabbage",
+      "broccoli",
+      "spinach",
+      "cucumber",
+      "lettuce",
+      "pepper",
+      "beetroot",
+      "corn",
+      "peas",
+      "beans",
+      "cauliflower",
+      "eggplant",
+      "celery",
+      "asparagus",
+      "garlic",
+      "green chilly",
+      "green beans",
+      "bell pepper",
+      "lady finger",
+      "bitter gourd",
+      "bottle gourd",
+      "ridge gourd",
+      "snake gourd",
+      "ivy gourd",
+      "cluster beans",
+    ],
+    fruits: [
+      "apple",
+      "banana",
+      "orange",
+      "grape",
+      "mango",
+      "strawberry",
+      "pineapple",
+      "watermelon",
+      "kiwi",
+      "peach",
+      "pear",
+      "plum",
+      "cherry",
+      "blueberry",
+      "raspberry",
+      "blackberry",
+      "pomegranate",
+      "papaya",
+      "guava",
+      "fig",
+      "dragonfruit",
+      "passion fruit",
+      "lychee",
+      "coconut",
+    ],
+    grains: [
+      "rice",
+      "wheat",
+      "corn",
+      "barley",
+      "oats",
+      "millet",
+      "quinoa",
+      "rye",
+      "sorghum",
+      "buckwheat",
+      "amaranth",
+      "teff",
+      "wild rice",
+      "kamut",
+      "spelt",
+      "triticale",
+    ],
+  };
+
+  const determineCategory = (productName) => {
+    const lowerProduct = productName.toLowerCase();
+
+    // Check for exact matches first
+    for (const [category, products] of Object.entries(productCategories)) {
+      if (products.includes(lowerProduct)) {
+        return category;
+      }
+    }
+
+    // Check for partial matches
+    for (const [category, products] of Object.entries(productCategories)) {
+      for (const product of products) {
+        if (lowerProduct.includes(product) || product.includes(lowerProduct)) {
+          return category;
+        }
+      }
+    }
+
+    return "other"; // Default category if no match is found
+  };
+  
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -21,10 +122,11 @@ const ChatBot = () => {
   const [newMessage, setNewMessage] = useState("");
   const [isTyping, setIsTyping] = useState(false);
   const [error, setError] = useState(null);
+  const [currentProduct, setCurrentProduct] = useState(null);
+  const [awaitingPrice, setAwaitingPrice] = useState(false);
+  const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
+  const [awaitingDetails, setAwaitingDetails] = useState(false); // For multi-step add product flow
   const messagesEndRef = useRef(null);
-
-  // Initialize Hugging Face Inference client
-  const client = new HfInference("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"); // Replace with your Hugging Face API key
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -33,6 +135,211 @@ const ChatBot = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const addBotMessage = (text, isError = false) => {
+    setMessages((prev) => [
+      ...prev,
+      {
+        id: Date.now(),
+        type: "bot",
+        text: text,
+        loading: false,
+        isError: isError,
+      },
+    ]);
+  };
+
+  const processMessage = async (userMessage) => {
+    const lowerMessage = userMessage.toLowerCase();
+
+    // Handle multi-step flows
+    if (awaitingPrice) {
+      return handlePriceInput(userMessage);
+    }
+    if (awaitingConfirmation) {
+      return handleConfirmation(userMessage);
+    }
+    if (awaitingDetails) {
+      return handleAddProductDetails(userMessage);
+    }
+
+    // Detect intent
+    if (lowerMessage.includes("update") && lowerMessage.includes("price")) {
+      return handleUpdatePrice(userMessage);
+    } else if (lowerMessage.includes("delete")) {
+      return handleDelete(userMessage);
+    } else if (
+      lowerMessage.includes("add") ||
+      lowerMessage.includes("insert")
+    ) {
+      return handleAdd(userMessage);
+    } else if (lowerMessage.includes("show") || lowerMessage.includes("list")) {
+      return handleListProducts(userMessage);
+    } else if (lowerMessage.includes("help")) {
+      return `I can help you with:
+- Updating product prices
+- Adding new products
+- Deleting products
+- Showing product listings
+What would you like to do?`;
+    } else {
+      return "I'm sorry, I didn't understand that. Type 'help' for a list of commands.";
+    }
+  };
+
+  const handleUpdatePrice = async (message) => {
+    const productMatch = message.match(
+      /(?:price of|update)\s+(\w+)(?:\s+to\s+(\d+))?/i
+    );
+    if (!productMatch) {
+      return "Could you specify which product you'd like to update?";
+    }
+
+    const productName = productMatch[1];
+    const newPrice = productMatch[2];
+
+    try {
+      const response = await axios.get(
+        `http://localhost:5000/singleProduct/${productName}`
+      );
+      setCurrentProduct(response.data);
+
+      if (!newPrice) {
+        setAwaitingPrice(true);
+        return `Could you please provide the new price for ${productName}?`;
+      }
+
+      return handlePriceUpdate(productName, newPrice);
+    } catch (error) {
+      return `I couldn't find ${productName} in our database. Please check the product name.`;
+    }
+  };
+
+  const handlePriceInput = async (message) => {
+    const priceMatch = message.match(/(\d+)/);
+    if (!priceMatch) {
+      return "Please provide a valid price in numbers.";
+    }
+
+    setAwaitingPrice(false);
+    return handlePriceUpdate(currentProduct.name, priceMatch[1]);
+  };
+
+  const handlePriceUpdate = async (productName, newPrice) => {
+    try {
+      const response = await axios.put(`/api/products/${productName}`, {
+        price: newPrice,
+      });
+
+      setAwaitingConfirmation(true);
+      return `I'll update the price of ${productName} from Rs.${currentProduct.price} to Rs.${newPrice}. Is this correct? (Yes/No)`;
+    } catch (error) {
+      return "Sorry, I couldn't update the price. Please try again.";
+    }
+  };
+
+  const handleConfirmation = async (message) => {
+    setAwaitingConfirmation(false);
+
+    if (message.toLowerCase().includes("yes")) {
+      try {
+        await axios.put(`/api/products/${currentProduct.name}`, {
+          price: currentProduct.newPrice,
+        });
+        return "Great! I've updated the price successfully.";
+      } catch (error) {
+        return "Sorry, there was an error updating the price.";
+      }
+    } else {
+      return "Okay, I won't update the price. Is there anything else I can help you with?";
+    }
+  };
+
+  const handleDelete = async (message) => {
+    const productMatch = message.match(/delete\s+(\w+)/i);
+    if (!productMatch) {
+      return "Which product would you like to delete?";
+    }
+
+    const productName = productMatch[1];
+    try {
+      await axios.delete(`/api/products/${productName}`);
+      return `I've deleted ${productName} from the database.`;
+    } catch (error) {
+      return `I couldn't delete ${productName}. Please check if the product exists.`;
+    }
+  };
+
+  const handleAdd = async (message) => {
+    const productMatch = message.match(/add\s+([a-zA-Z\s]+)/i);
+    if (!productMatch) {
+      return "Which product would you like to add?";
+    }
+
+    const productName = productMatch[1].trim();
+    setCurrentProduct({ name: productName });
+    setAwaitingDetails(true);
+    return `Please provide details for ${productName} in this format:
+- Quantity: [number]
+- Price: [number]
+- Freshness: [fresh/good/average]
+- Location: [location]`;
+  };
+
+  const handleAddProductDetails = async (message) => {
+    const detailsMatch = message.match(
+      /quantity\s+(\d+).*price\s+(\d+).*freshness\s+(\w+).*location\s+([a-zA-Z\s]+)/i
+    );
+    if (!detailsMatch) {
+      return "Please provide all required details in the correct format.";
+    }
+
+    const [, quantity, price, freshness, location] = detailsMatch;
+    const category = determineCategory(currentProduct.name);
+
+    try {
+      const currentDate = new Date();
+      const formattedDate = currentDate.toISOString().split("T")[0]; // YYYY-MM-DD format
+
+      const response = await axios.post("http://localhost:5000/addproduct", {
+        productName: currentProduct.name,
+        productPrice: parseInt(price),
+        productQuantity: parseInt(quantity),
+        HarvestDate: formattedDate,
+        productFreshness: freshness,
+        productCategory: category,
+        productLocation: location,
+        productUnit: "kg",
+      });
+
+      setAwaitingDetails(false);
+      return `I've added ${currentProduct.name} with the following details:
+- Category: ${category}
+- Price: Rs.${price}
+- Quantity: ${quantity}
+- Freshness: ${freshness}
+- Location: ${location}
+- Harvest Date: ${formattedDate}`;
+    } catch (error) {
+      console.error("Error adding product:", error);
+      return "Sorry, I couldn't add the product. Please try again.";
+    }
+  };
+
+  const handleListProducts = async () => {
+    try {
+      const response = await axios.get("http://localhost:5000/getproduct");
+      const products = response.data.data;
+      return `Here are the current products:\n${products
+        .map(
+          (p) =>
+            `- ${p.productName}: Rs.${p.productPrice} (Quantity: ${p.productQuantity})`
+        )
+        .join("\n")}`;
+    } catch (error) {
+      return "Sorry, I couldn't retrieve the product list.";
+    }
+  };
 
   const handleSend = async () => {
     if (!newMessage.trim()) return;
@@ -50,105 +357,15 @@ const ChatBot = () => {
     setError(null);
 
     try {
-      const maxRetries = 3;
-      let retryCount = 0;
-      let lastError;
-
-      while (retryCount < maxRetries) {
-        try {
-          const stream =  client.chatCompletionStream({
-            model: "google/gemma-2-2b-it", // Replace with your model of choice
-            messages: [
-              {
-                role: "user",
-                content: `
-You are an AI assistant designed to help farmers manage their products and inventory.
-Recognize user intents such as:
-- "Show me vegetables"
-- "Update price for tomatoes"
-- "What is the availability for mangoes?"
-
-Allow users to dynamically add, update, or delete products during the session.
-
-Capture and handle the following key product attributes:
-- Product name
-- Price per unit
-- Available quantity
-- Harvest season/date
-- Location details
-
-Your goal is to help farmers efficiently manage their product listings and pricing, ensuring real-time updates and ease of access to inventory details.
-`,
-              },
-              ...messages.map((msg) => ({
-                role: msg.type === "user" ? "user" : "assistant",
-                content: msg.text,
-              })),
-            ],
-            max_tokens: 500,
-          });
-
-          let botResponse = "";
-          for await (const chunk of stream) {
-            if (chunk.choices && chunk.choices.length > 0) {
-              const newContent = chunk.choices[0].delta.content;
-              botResponse += newContent;
-            }
-          }
-
-          setMessages((prev) => [
-            ...prev,
-            {
-              id: Date.now(),
-              type: "bot",
-              text: botResponse,
-              loading: false,
-            },
-          ]);
-          return;
-        } catch (err) {
-          lastError = err;
-          retryCount++;
-
-          if (!err.message.includes("500")) {
-            throw err;
-          }
-
-          await new Promise((resolve) =>
-            setTimeout(resolve, Math.min(1000 * Math.pow(2, retryCount), 8000))
-          );
-        }
-      }
-
-      throw lastError;
+      const botResponse = await processMessage(userMessage.text);
+      addBotMessage(botResponse);
     } catch (error) {
       console.error("Chat Error:", error);
-
-      let errorMessage =
-        "An unexpected error occurred. Please try again later.";
-
-      if (error.message.includes("500")) {
-        errorMessage =
-          "The server is temporarily unavailable. Please try again in a few moments.";
-      } else if (error.message.includes("429")) {
-        errorMessage =
-          "Too many requests. Please wait a moment before trying again.";
-      } else if (error.message.includes("401")) {
-        errorMessage =
-          "Authentication error. Please check your API credentials.";
-      }
-
+      addBotMessage(
+        "An error occurred while processing your request. Please try again.",
+        true
+      );
       setError(error.message);
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: Date.now(),
-          type: "bot",
-          text: errorMessage,
-          loading: false,
-          isError: true,
-        },
-      ]);
     } finally {
       setIsTyping(false);
     }
@@ -183,7 +400,7 @@ Your goal is to help farmers efficiently manage their product listings and prici
               : message.isError
               ? "bg-red-900 text-white"
               : "bg-gray-800 text-gray-100"
-          } rounded-lg p-4 max-w-[80%]`}
+          } rounded-lg p-4 max-w-[80%] whitespace-pre-wrap`}
         >
           {message.text}
         </div>

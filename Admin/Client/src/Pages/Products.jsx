@@ -1,54 +1,97 @@
 import React, { useState } from "react";
 import { Plus, Pencil, Trash2, Search, ChevronDown, X } from "lucide-react";
+import { useEffect } from "react";
+import axios from "axios";
 
 const ProductsPage = () => {
   const [products, setProducts] = useState([
     {
-      id: 1,
-      name: "Organic Tomatoes",
-      category: "vegetables",
-      price: 25,
-      unit: "kg",
-      quantity: 100,
-      location: "Nashik, Maharashtra",
-      harvestDate: "2025-02-01",
-      freshness: "Fresh",
+      productName: "tomato",
+      productCategory: "vegetables",
+      productPrice: 100,
+      productQuantity: 150,
+      productLocation: "india",
+      productUnit: "kg",
+      productFreshness: "Fresh",
+      HarvestDate: "2005-12-31T00:00:00.000Z",
     },
   ]);
 
+  const [productdetails, setProductDetails] = useState([]);
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [newProduct, setNewProduct] = useState({
-    name: "",
-    category: "",
-    price: "",
-    unit: "kg",
-    quantity: "",
-    location: "",
-    harvestDate: "",
-    freshness: "Fresh",
+    productName: "",
+    productCategory: "",
+    productPrice: "",
+    productQuantity: "",
+    productUnit: "kg",
+    productLocation: "", // Fixed typo here
+    HarvestDate: "",
+    productFreshness: "Fresh",
   });
 
   const categories = ["vegetables", "grains", "fruits", "dairy"];
   const freshnessLevels = ["Fresh", "Very Fresh", "Day Old"];
 
-  const handleAddProduct = () => {
-    setProducts([...products, { ...newProduct, id: products.length + 1 }]);
-    setShowAddDialog(false);
-    setNewProduct({
-      name: "",
-      category: "",
-      price: "",
-      unit: "kg",
-      quantity: "",
-      location: "",
-      harvestDate: "",
-      freshness: "Fresh",
-    });
+  useEffect(() => {
+    const fetchProductDetails = async () => {
+      try {
+        const response = await axios.get("http://localhost:5000/getproduct");
+        setProductDetails(response.data.data); 
+        console.log("res",response.data.data)
+      } catch (error) {
+        console.error("Error fetching product details:", error);
+      }
+    };
+
+    fetchProductDetails(); // Call the function to fetch data
+  }, []);
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    try {
+      const formattedProduct = {
+        ...newProduct,
+        productPrice: Number(newProduct.productPrice),
+        productQuantity: Number(newProduct.productQuantity),
+      };
+
+      console.log("Sending product data:", formattedProduct);
+
+      const response = await axios.post(
+        "http://localhost:5000/addProduct",
+        formattedProduct
+      );
+
+      if (response.status === 201) {
+        console.log("Product added successfully:", response.data);
+        // Add the new product to the local state
+        setProducts([...products, response.data]);
+        // Clear the form
+        setNewProduct({
+          productName: "",
+          productCategory: "",
+          productPrice: "",
+          productQuantity: "",
+          productUnit: "kg",
+          productLocation: "",
+          HarvestDate: "",
+          productFreshness: "Fresh",
+        });
+        // Close the dialog
+        setShowAddDialog(false);
+      }
+    } catch (err) {
+      console.error("Error adding product:", err.response?.data || err.message);
+      // Here you might want to show an error message to the user
+    }
   };
 
   return (
     <div className="p-6 bg-gray-900 min-h-screen rounded-md">
+      {/* Header section remains the same */}
       <div className="flex justify-between items-center mb-6">
         <h1 className="text-2xl font-bold text-white">Products Management</h1>
         <div className="flex gap-4">
@@ -71,6 +114,7 @@ const ProductsPage = () => {
         </div>
       </div>
 
+      {/* Table section remains the same */}
       <div className="bg-gray-800 rounded-lg overflow-hidden">
         <table className="w-full">
           <thead>
@@ -102,39 +146,39 @@ const ProductsPage = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
-            {products.map((product) => (
-              <tr key={product.id} className="hover:bg-gray-700">
+            {productdetails.map((product) => (
+              <tr key={product._id} className="hover:bg-gray-700">
                 <td className="px-6 py-4 text-sm text-gray-200">
-                  {product.name}
+                  {product.productName}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-200">
                   <span className="px-2 py-1 text-xs rounded-full bg-gray-600">
-                    {product.category}
+                    {product.productCategory}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-200">
-                  ₹{product.price}/{product.unit}
+                  ₹{product.productPrice}/{product.productUnit}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-200">
-                  {product.quantity} {product.unit}
+                  {product.productQuantity}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-200">
-                  {product.location}
+                  {product.productLocation}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-200">
-                  {new Date(product.harvestDate).toLocaleDateString()}
+                  {new Date(product.HarvestDate).toLocaleDateString()}
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-200">
                   <span
                     className={`px-2 py-1 text-xs rounded-full ${
-                      product.freshness === "Fresh"
+                      product.productFreshness === "Fresh"
                         ? "bg-green-600"
                         : product.freshness === "Very Fresh"
                         ? "bg-emerald-600"
                         : "bg-yellow-600"
                     }`}
                   >
-                    {product.freshness}
+                    {product.productFreshness}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-200 text-right">
@@ -148,28 +192,32 @@ const ProductsPage = () => {
               </tr>
             ))}
           </tbody>
-        </table>
+        </table>{" "}
       </div>
 
       {showAddDialog && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
-          <div className="bg-gray-800 p-6 rounded-lg w-[500px] mt-20  max-w-full">
+          <div className="bg-gray-800 p-6 rounded-lg w-[500px] mt-20 max-w-full">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold text-white">Add New Product</h2>
               <button onClick={() => setShowAddDialog(false)}>
                 <X className="h-5 w-5 text-gray-400" />
               </button>
             </div>
-            <div className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-sm text-gray-200 mb-1">
                   Product Name
                 </label>
                 <input
+                  required
                   className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-gray-200"
-                  value={newProduct.name}
+                  value={newProduct.productName}
                   onChange={(e) =>
-                    setNewProduct({ ...newProduct, name: e.target.value })
+                    setNewProduct({
+                      ...newProduct,
+                      productName: e.target.value,
+                    })
                   }
                 />
               </div>
@@ -178,10 +226,14 @@ const ProductsPage = () => {
                   Category
                 </label>
                 <select
+                  required
                   className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-gray-200"
-                  value={newProduct.category}
+                  value={newProduct.productCategory}
                   onChange={(e) =>
-                    setNewProduct({ ...newProduct, category: e.target.value })
+                    setNewProduct({
+                      ...newProduct,
+                      productCategory: e.target.value,
+                    })
                   }
                 >
                   <option value="">Select category</option>
@@ -198,11 +250,17 @@ const ProductsPage = () => {
                     Price
                   </label>
                   <input
+                    required
                     type="number"
+                    min="0"
+                    step="0.01"
                     className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-gray-200"
-                    value={newProduct.price}
+                    value={newProduct.productPrice}
                     onChange={(e) =>
-                      setNewProduct({ ...newProduct, price: e.target.value })
+                      setNewProduct({
+                        ...newProduct,
+                        productPrice: e.target.value,
+                      })
                     }
                   />
                 </div>
@@ -211,11 +269,16 @@ const ProductsPage = () => {
                     Quantity
                   </label>
                   <input
+                    required
                     type="number"
+                    min="0"
                     className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-gray-200"
-                    value={newProduct.quantity}
+                    value={newProduct.productQuantity}
                     onChange={(e) =>
-                      setNewProduct({ ...newProduct, quantity: e.target.value })
+                      setNewProduct({
+                        ...newProduct,
+                        productQuantity: e.target.value,
+                      })
                     }
                   />
                 </div>
@@ -225,10 +288,14 @@ const ProductsPage = () => {
                   Location
                 </label>
                 <input
+                  required
                   className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-gray-200"
-                  value={newProduct.location}
+                  value={newProduct.productLocation}
                   onChange={(e) =>
-                    setNewProduct({ ...newProduct, location: e.target.value })
+                    setNewProduct({
+                      ...newProduct,
+                      productLocation: e.target.value,
+                    })
                   }
                 />
               </div>
@@ -237,13 +304,14 @@ const ProductsPage = () => {
                   Harvest Date
                 </label>
                 <input
+                  required
                   type="date"
                   className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-gray-200"
-                  value={newProduct.harvestDate}
+                  value={newProduct.HarvestDate}
                   onChange={(e) =>
                     setNewProduct({
                       ...newProduct,
-                      harvestDate: e.target.value,
+                      HarvestDate: e.target.value,
                     })
                   }
                 />
@@ -253,10 +321,14 @@ const ProductsPage = () => {
                   Freshness
                 </label>
                 <select
+                  required
                   className="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-gray-200"
-                  value={newProduct.freshness}
+                  value={newProduct.productFreshness}
                   onChange={(e) =>
-                    setNewProduct({ ...newProduct, freshness: e.target.value })
+                    setNewProduct({
+                      ...newProduct,
+                      productFreshness: e.target.value, // Fixed case here
+                    })
                   }
                 >
                   {freshnessLevels.map((level) => (
@@ -267,12 +339,12 @@ const ProductsPage = () => {
                 </select>
               </div>
               <button
-                onClick={handleAddProduct}
+                type="submit"
                 className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors mt-4"
               >
                 Add Product
               </button>
-            </div>
+            </form>
           </div>
         </div>
       )}

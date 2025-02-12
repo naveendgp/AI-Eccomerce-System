@@ -5,6 +5,9 @@ const Register = require('./Router/Register');
 const Login = require('./Router/Login');
 const AdminLogin = require('./Router/AdminLogin');
 const verifyToken  = require('./Router/Verify');
+const AddProduct = require('./Router/Product');
+const GetProduct = require('./Router/GetProducts');
+const singleProduct = require('./Router/SingleProduct')
 
 const port = 5000;
 
@@ -21,6 +24,10 @@ app.use('/register', Register);
 app.use('/login', Login);
 app.use('/adminlogin', AdminLogin);
 app.use('/verify', verifyToken);
+
+app.use('/addProduct', AddProduct);  
+app.use('/getProduct', GetProduct);  
+app.use('/singleProduct', singleProduct);
 
 
 app.listen(port, () => {
