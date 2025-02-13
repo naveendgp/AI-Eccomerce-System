@@ -10,10 +10,6 @@ import {
 } from "lucide-react";
 
 const Chat = () => {
-  const HUGGING_FACE_API_KEY = "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";
-  const AI_MODEL_URL =
-    "https://api-inference.huggingface.co/models/google/flan-t5-large";
-
   const productCategories = {
     vegetables: [
       "tomato",
@@ -130,7 +126,6 @@ const Chat = () => {
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
   const [awaitingDetails, setAwaitingDetails] = useState(false); // For multi-step add product flow
   const messagesEndRef = useRef(null);
-  const [aiContext, setAiContext] = useState([]);
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -153,56 +148,21 @@ const Chat = () => {
     ]);
   };
 
-  const getAIResponse = async (userMessage) => {
-    try {
-      const prompt = `
-Context: You are a farming assistant in admin panel helping with agricultural products and advice.
-Previous messages: ${aiContext.slice(-3).join(" ")}
-Current question: ${userMessage}
-Provide a helpful response about farming, crops, or agricultural products think like youre a helper to the user.
-`;
-
-      const response = await axios.post(
-        AI_MODEL_URL,
-        {
-          inputs: prompt,
-          parameters: {
-            max_length: 200,
-            temperature: 0.7,
-            top_p: 0.9,
-          },
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${HUGGING_FACE_API_KEY}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      // Update AI context
-      setAiContext((prev) => [
-        ...prev,
-        userMessage,
-        response.data[0].generated_text,
-      ]);
-
-      return response.data[0].generated_text;
-    } catch (error) {
-      console.error("AI API Error:", error);
-      return null;
-    }
-  };
-
   const processMessage = async (userMessage) => {
     const lowerMessage = userMessage.toLowerCase();
 
-    // Handle existing command flows first
-    if (awaitingPrice) return handlePriceInput(userMessage);
-    if (awaitingConfirmation) return handleConfirmation(userMessage);
-    if (awaitingDetails) return handleAddProductDetails(userMessage);
+    // Handle multi-step flows
+    if (awaitingPrice) {
+      return handlePriceInput(userMessage);
+    }
+    if (awaitingConfirmation) {
+      return handleConfirmation(userMessage);
+    }
+    if (awaitingDetails) {
+      return handleAddProductDetails(userMessage);
+    }
 
-    // Check for specific commands
+    // Detect intent
     if (lowerMessage.includes("update") && lowerMessage.includes("price")) {
       return handleUpdatePrice(userMessage);
     } else if (lowerMessage.includes("delete")) {
@@ -220,18 +180,10 @@ Provide a helpful response about farming, crops, or agricultural products think 
 - Adding new products
 - Deleting products
 - Showing product listings
-- General farming advice and questions
 What would you like to do?`;
+    } else {
+      return "I'm sorry, I didn't understand that. Type 'help' for a list of commands.";
     }
-
-    // If no specific command is matched, use AI for response
-    const aiResponse = await getAIResponse(userMessage);
-    if (aiResponse) {
-      return aiResponse;
-    }
-
-    // Fallback response if AI fails
-    return "I'm sorry, I couldn't understand that. Type 'help' for a list of commands or ask me any farming-related questions.";
   };
 
   const handleUpdatePrice = async (message) => {
@@ -333,79 +285,45 @@ What would you like to do?`;
 - Location: [location]`;
   };
 
- const handleAddProductDetails = async (message) => {
-   try {
-     // First check if the product exists
-     try {
-       const checkResponse = await axios.get(
-         `http://localhost:5000/singleproduct/${currentProduct.name}`
-       );
+  const handleAddProductDetails = async (message) => {
+    const detailsMatch = message.match(
+      /quantity\s+(\d+).*price\s+(\d+).*freshness\s+(\w+).*location\s+([a-zA-Z\s]+)/i
+    );
+    if (!detailsMatch) {
+      return "Please provide all required details in the correct format.";
+    }
 
-       if (checkResponse.data) {
-         setAwaitingDetails(false);
-         setCurrentProduct(null);
-         return `A product with name "${currentProduct.name}" already exists in the database. Would you like to update it or add a different product?`;
-       }
-     } catch (error) {
-       if (error.response && error.response.status !== 404) {
-         throw error; 
-       }
-     }
-     if (
-       message.toLowerCase().match(/cancel|exit|stop|don't|dont|no|never mind/)
-     ) {
-       setAwaitingDetails(false);
-       setCurrentProduct(null);
-       return "Product addition cancelled. What else can I help you with?";
-     }
+    const [, quantity, price, freshness, location] = detailsMatch;
+    const category = determineCategory(currentProduct.name);
 
-     const detailsMatch = message.match(
-       /quantity\s+(\d+).*price\s+(\d+).*freshness\s+(\w+).*location\s+([a-zA-Z\s]+)/i
-     );
+    try {
+      const currentDate = new Date();
+      const formattedDate = currentDate.toISOString().split("T")[0]; // YYYY-MM-DD format
 
-     if (!detailsMatch) {
-       return "Please provide all required details in the correct format.";
-     }
+      const response = await axios.post("http://localhost:5000/addproduct", {
+        productName: currentProduct.name,
+        productPrice: parseInt(price),
+        productQuantity: parseInt(quantity),
+        HarvestDate: formattedDate,
+        productFreshness: freshness,
+        productCategory: category,
+        productLocation: location,
+        productUnit: "kg",
+      });
 
-     const [, quantity, price, freshness, location] = detailsMatch;
-     const category = determineCategory(currentProduct.name);
-
-     // If we get here, the product doesn't exist, so we can add it
-     const currentDate = new Date();
-     const formattedDate = currentDate.toISOString().split("T")[0];
-
-     const response = await axios.post("http://localhost:5000/addproduct", {
-       productName: currentProduct.name,
-       productPrice: parseInt(price),
-       productQuantity: parseInt(quantity),
-       HarvestDate: formattedDate,
-       productFreshness: freshness,
-       productCategory: category,
-       productLocation: location,
-       productUnit: "kg",
-     });
-
-     if (response.data.data.status === 422) {
-       setAwaitingDetails(false);
-       setCurrentProduct(null);
-       return "Product is already in the database. Please provide a new product name.";
-     }
-
-     setAwaitingDetails(false);
-     return `I've added ${currentProduct.name} with the following details:
+      setAwaitingDetails(false);
+      return `I've added ${currentProduct.name} with the following details:
 - Category: ${category}
 - Price: Rs.${price}
 - Quantity: ${quantity}
 - Freshness: ${freshness}
 - Location: ${location}
 - Harvest Date: ${formattedDate}`;
-   } catch (error) {
-     console.error("Error adding product:", error);
-     setAwaitingDetails(false);
-     setCurrentProduct(null);
-     return "Sorry, I couldn't add the product. Please try again.";
-   }
- };
+    } catch (error) {
+      console.error("Error adding product:", error);
+      return "Sorry, I couldn't add the product. Please try again.";
+    }
+  };
 
   const handleListProducts = async () => {
     try {
@@ -432,44 +350,19 @@ What would you like to do?`;
       loading: false,
     };
 
-    const loadingMessage = {
-      id: Date.now() + 1,
-      type: "bot",
-      loading: true,
-    };
-
-    setMessages((prev) => [...prev, userMessage, loadingMessage]);
-    setAiContext((prev) => [...prev, userMessage.text]);
+    setMessages((prev) => [...prev, userMessage]);
     setNewMessage("");
     setIsTyping(true);
     setError(null);
 
     try {
       const botResponse = await processMessage(userMessage.text);
-      // Remove loading message and add actual response
-      setMessages((prev) =>
-        prev
-          .filter((msg) => msg.id !== loadingMessage.id)
-          .concat({
-            id: Date.now() + 2,
-            type: "bot",
-            text: botResponse,
-            loading: false,
-          })
-      );
+      addBotMessage(botResponse);
     } catch (error) {
       console.error("Chat Error:", error);
-      // Remove loading message and add error message
-      setMessages((prev) =>
-        prev
-          .filter((msg) => msg.id !== loadingMessage.id)
-          .concat({
-            id: Date.now() + 2,
-            type: "bot",
-            text: "I encountered an error processing your request. Please try again.",
-            loading: false,
-            isError: true,
-          })
+      addBotMessage(
+        "An error occurred while processing your request. Please try again.",
+        true
       );
       setError(error.message);
     } finally {
@@ -477,71 +370,42 @@ What would you like to do?`;
     }
   };
 
-  const Message = ({ message }) => {
-    if (message.loading) {
-      return (
-        <div className="flex justify-start mb-4">
-          <div className="flex flex-row items-end space-x-2">
-            <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center mr-2">
-              <Bot className="w-5 h-5 text-white" />
-            </div>
-            <div className="bg-gray-800 rounded-lg p-4 flex items-center space-x-2">
-              <span className="text-gray-300">Thinking</span>
-              <div className="flex space-x-1">
-                {[0, 1, 2].map((index) => (
-                  <div
-                    key={index}
-                    className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
-                    style={{
-                      animationDuration: "1s",
-                      animationDelay: `${index * 0.2}s`,
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
+  const Message = ({ message }) => (
+    <div
+      className={`flex ${
+        message.type === "user" ? "justify-end" : "justify-start"
+      } mb-4`}
+    >
       <div
         className={`flex ${
-          message.type === "user" ? "justify-end" : "justify-start"
-        } mb-4`}
+          message.type === "user" ? "flex-row-reverse" : "flex-row"
+        } items-end space-x-2`}
       >
         <div
-          className={`flex ${
-            message.type === "user" ? "flex-row-reverse" : "flex-row"
-          } items-end space-x-2`}
+          className={`w-8 h-8 rounded-full flex items-center justify-center ${
+            message.type === "user" ? "bg-blue-500 ml-2" : "bg-gray-700 mr-2"
+          }`}
         >
-          <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center ${
-              message.type === "user" ? "bg-blue-500 ml-2" : "bg-gray-700 mr-2"
-            }`}
-          >
-            {message.type === "user" ? (
-              <User className="w-5 h-5 text-white" />
-            ) : (
-              <Bot className="w-5 h-5 text-white" />
-            )}
-          </div>
-          <div
-            className={`${
-              message.type === "user"
-                ? "bg-blue-600 text-white"
-                : message.isError
-                ? "bg-red-900 text-white"
-                : "bg-gray-800 text-gray-100"
-            } rounded-lg p-4 max-w-[80%] whitespace-pre-wrap`}
-          >
-            {message.text}
-          </div>
+          {message.type === "user" ? (
+            <User className="w-5 h-5 text-white" />
+          ) : (
+            <Bot className="w-5 h-5 text-white" />
+          )}
+        </div>
+        <div
+          className={`${
+            message.type === "user"
+              ? "bg-blue-600 text-white"
+              : message.isError
+              ? "bg-red-900 text-white"
+              : "bg-gray-800 text-gray-100"
+          } rounded-lg p-4 max-w-[80%] whitespace-pre-wrap`}
+        >
+          {message.text}
         </div>
       </div>
-    );
-  };
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-[600px] bg-gray-900 rounded-lg">
@@ -568,6 +432,27 @@ What would you like to do?`;
         {messages.map((message) => (
           <Message key={message.id} message={message} />
         ))}
+        {isTyping && (
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
+              <Bot className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex space-x-2 bg-gray-800 rounded-lg p-4">
+              <div
+                className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
+                style={{ animationDelay: "0ms" }}
+              />
+              <div
+                className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
+                style={{ animationDelay: "150ms" }}
+              />
+              <div
+                className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
+                style={{ animationDelay: "300ms" }}
+              />
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 

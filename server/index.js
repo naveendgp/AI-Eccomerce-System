@@ -8,6 +8,7 @@ const verifyToken  = require('./Router/Verify');
 const AddProduct = require('./Router/Product');
 const GetProduct = require('./Router/GetProducts');
 const singleProduct = require('./Router/SingleProduct')
+const chatbot = require('./Router/Huggingface')
 
 const port = 5000;
 
@@ -28,6 +29,8 @@ app.use('/verify', verifyToken);
 app.use('/addProduct', AddProduct);  
 app.use('/getProduct', GetProduct);  
 app.use('/singleProduct', singleProduct);
+
+app.use('/chatbot', chatbot);
 
 
 app.listen(port, () => {

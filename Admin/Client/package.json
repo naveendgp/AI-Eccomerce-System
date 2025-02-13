@@ -10,7 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "@huggingface/inference": "^3.1.6",
+    "@huggingface/inference": "^3.3.3",
     "@tailwindcss/vite": "^4.0.3",
     "axios": "^1.7.9",
     "lucide-react": "^0.474.0",

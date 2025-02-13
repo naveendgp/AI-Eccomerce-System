@@ -1,10 +1,13 @@
 import React from "react";
 import { Bell, Search, Settings, User, Menu, Moon, Sun } from "lucide-react";
+import { useAuth } from "../../Context/AuthProvider";
 
 const TopNavigation = () => {
   const [isSearchFocused, setIsSearchFocused] = React.useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [isDarkMode, setIsDarkMode] = React.useState(true);
+
+  const {user} = useAuth();
 
   return (
     <nav className="bg-gray-900 border-b border-gray-700 fixed w-full top-0 z-30">
@@ -70,7 +73,7 @@ const TopNavigation = () => {
                 <User className="h-5 w-5 text-gray-300" />
               </div>
               <span className="hidden md:block text-sm font-medium text-gray-300">
-                Admin User
+                {user.email||"Admin User"}
               </span>
             </button>
           </div>

@@ -7,6 +7,7 @@ import Layout from "./Layout";
 import ChatBot from "./Pages/ChatBot";
 import ProductsPage from "./Pages/Products";
 import OrdersPage from "./Pages/Orders";
+import Chat from "./Pages/Chat";
 import { AuthProvider } from "./Context/AuthProvider";
 import { ProtectedRoute } from "./Context/ProtectedRoutes";
 import "./App.css";
@@ -57,6 +58,15 @@ function App() {
                   <ChatBot />
                 </Layout>
               </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/chat"
+            element={
+            
+                <Layout>
+                  <Chat />
+                </Layout>
             }
           />
         </Routes>

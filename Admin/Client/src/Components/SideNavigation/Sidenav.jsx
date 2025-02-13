@@ -15,11 +15,13 @@ import {
   MessageCircle
 } from "lucide-react";
 import {useNavigate} from "react-router-dom";
-import { use } from "react";
+import { useAuth } from "../../Context/AuthProvider";
 
 const Sidebar = () => {
   const [isCollapsed, setIsCollapsed] = React.useState(false);
   const [activeItem, setActiveItem] = React.useState("dashboard");
+
+  const {user} = useAuth();
 
   const menuItems = [
     { id: "dashboard", icon: Home, label: "Dashboard",path:"/dashboard" },
@@ -113,8 +115,8 @@ const Sidebar = () => {
               <Users className="h-5 w-5 text-gray-300" />
             </div>
             <div className="ml-3">
-              <p className="text-sm font-medium text-gray-200">Admin User</p>
-              <p className="text-xs text-gray-400">admin@example.com</p>
+              <p className="text-sm font-medium text-gray-200">{'Admin User'}</p>
+              <p className="text-xs text-gray-400">{user.email||"admin@example.com"}</p>
             </div>
           </div>
         )}

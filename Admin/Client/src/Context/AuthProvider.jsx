@@ -1,12 +1,11 @@
 import React, { createContext, useState, useContext, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  const navigate = useNavigate()
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
     checkAuth();
@@ -46,6 +45,7 @@ export const AuthProvider = ({ children }) => {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
+
       });
 
       const data = await response.json();
@@ -54,6 +54,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem("adminToken", data.token);
         setAdmin(data.user.role);
         console.log("admin ",data.user.role)
+        setUser({email,password})
         return true;
       }
       return false;
@@ -71,6 +72,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     admin,
     loading,
+    user,
     login,
     logout,
   };
