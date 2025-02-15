@@ -17,7 +17,10 @@ const RegistrationSchema = new mongoose.Schema({
     },
     role:{
         type:String
-    }   
+    },
+    name:{
+        type:String
+    }
 })
 
 const Registration = new mongoose.model("Registration",RegistrationSchema)

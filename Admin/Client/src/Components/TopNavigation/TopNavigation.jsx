@@ -7,7 +7,7 @@ const TopNavigation = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [isDarkMode, setIsDarkMode] = React.useState(true);
 
-  const {user} = useAuth();
+  const {user,logout} = useAuth();
 
   return (
     <nav className="bg-gray-900 border-b border-gray-700 fixed w-full top-0 z-30">
@@ -68,7 +68,7 @@ const TopNavigation = () => {
               <Settings className="h-6 w-6 text-gray-400" />
             </button>
             <div className="h-8 w-px bg-gray-700"></div>
-            <button className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-800">
+            <button onClick={logout} className="flex items-center space-x-2 p-2 rounded-lg hover:bg-gray-800">
               <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
                 <User className="h-5 w-5 text-gray-300" />
               </div>

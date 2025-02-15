@@ -4,6 +4,7 @@ const AuthContext = createContext(null);
 export const AuthProvider = ({ children }) => {
   const [admin, setAdmin] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [name,setName] = useState(null);
 
   const [user, setUser] = useState(null);
 
@@ -54,6 +55,7 @@ export const AuthProvider = ({ children }) => {
         localStorage.setItem("adminToken", data.token);
         setAdmin(data.user.role);
         console.log("admin ",data.user.role)
+        setName(data.user.name)
         setUser({email,password})
         return true;
       }
@@ -72,6 +74,7 @@ export const AuthProvider = ({ children }) => {
   const value = {
     admin,
     loading,
+    name,
     user,
     login,
     logout,

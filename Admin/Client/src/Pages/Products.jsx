@@ -1,32 +1,20 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, Search, ChevronDown, X } from "lucide-react";
-import { useEffect } from "react";
 import axios from "axios";
+import io from "socket.io-client";
 
 const ProductsPage = () => {
-  const [products, setProducts] = useState([
-    {
-      productName: "tomato",
-      productCategory: "vegetables",
-      productPrice: 100,
-      productQuantity: 150,
-      productLocation: "india",
-      productUnit: "kg",
-      productFreshness: "Fresh",
-      HarvestDate: "2005-12-31T00:00:00.000Z",
-    },
-  ]);
-
-  const [productdetails, setProductDetails] = useState([]);
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [searchTerm, setSearchTerm] = useState("");
+  const socket = io("http://localhost:5000"); // Connect to the socket.io server
+  const [products, setProducts] = useState([]); // State to store products
+  const [showAddDialog, setShowAddDialog] = useState(false); // State to control add product dialog
+  const [searchTerm, setSearchTerm] = useState(""); // State for search functionality
   const [newProduct, setNewProduct] = useState({
     productName: "",
     productCategory: "",
     productPrice: "",
     productQuantity: "",
     productUnit: "kg",
-    productLocation: "", // Fixed typo here
+    productLocation: "",
     HarvestDate: "",
     productFreshness: "Fresh",
   });
@@ -34,20 +22,63 @@ const ProductsPage = () => {
   const categories = ["vegetables", "grains", "fruits", "dairy"];
   const freshnessLevels = ["Fresh", "Very Fresh", "Day Old"];
 
+  // Fetch products on component mount
   useEffect(() => {
     const fetchProductDetails = async () => {
       try {
         const response = await axios.get("http://localhost:5000/getproduct");
-        setProductDetails(response.data.data); 
-        console.log("res",response.data.data)
+        setProducts(response.data.data); // Update state with fetched products
+        console.log("Fetched products:", response.data.data);
       } catch (error) {
         console.error("Error fetching product details:", error);
       }
     };
 
-    fetchProductDetails(); // Call the function to fetch data
+    fetchProductDetails();
+
+    // Listen for real-time updates from the server
+    socket.on("productAdded", (newProduct) => {
+      setProducts((prevProducts) => [...prevProducts, newProduct]); // Add new product to the list
+      console.log("New product added:", newProduct);
+    });
+
+    socket.on("productUpdated", (updatedProduct) => {
+      setProducts((prevProducts) =>
+        prevProducts.map((product) =>
+          product._id === updatedProduct._id ? updatedProduct : product
+        )
+      ); // Update the product in the list
+      console.log("Product updated:", updatedProduct);
+    });
+
+    socket.on("productDeleted", (deletedProductId) => {
+      setProducts((prevProducts) =>
+        prevProducts.filter((product) => product._id !== deletedProductId)
+      ); // Remove the deleted product from the list
+      console.log("Product deleted:", deletedProductId);
+    });
+
+    // Clean up socket listeners on component unmount
+    return () => {
+      socket.off("productAdded");
+      socket.off("productUpdated");
+      socket.off("productDeleted");
+    };
   }, []);
 
+  // Handle product deletion
+  const handleDelete = async (productId) => {
+    try {
+      const response = await axios.delete(
+        `http://localhost:5000/deleteProduct/${productId}`
+      );
+      console.log("Product deleted successfully:", response.data);
+    } catch (err) {
+      console.error("Error deleting product:", err.response?.data || err.message);
+    }
+  };
+
+  // Handle form submission for adding a new product
   const handleSubmit = async (e) => {
     e.preventDefault();
 
@@ -67,8 +98,6 @@ const ProductsPage = () => {
 
       if (response.status === 201) {
         console.log("Product added successfully:", response.data);
-        // Add the new product to the local state
-        setProducts([...products, response.data]);
         // Clear the form
         setNewProduct({
           productName: "",
@@ -85,9 +114,10 @@ const ProductsPage = () => {
       }
     } catch (err) {
       console.error("Error adding product:", err.response?.data || err.message);
-      // Here you might want to show an error message to the user
     }
   };
+
+  
 
   return (
     <div className="p-6 bg-gray-900 min-h-screen rounded-md">
@@ -171,21 +201,21 @@ const ProductsPage = () => {
                 <td className="px-6 py-4 text-sm text-gray-200">
                   <span
                     className={`px-2 py-1 text-xs rounded-full ${
-                      product.productFreshness === "Fresh"
+                      product.productFreshness === "Fresh" || 'fresh'
                         ? "bg-green-600"
                         : product.freshness === "Very Fresh"
                         ? "bg-emerald-600"
                         : "bg-yellow-600"
                     }`}
                   >
-                    {product.productFreshness}
+                    {product.productFreshness.charAt(0).toUpperCase() + product.productFreshness.slice(1) }
                   </span>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-200 text-right">
                   <button className="p-1 bg-gray-600 rounded hover:bg-gray-500 mr-2">
                     <Pencil className="h-4 w-4" />
                   </button>
-                  <button className="p-1 bg-red-600 rounded hover:bg-red-700">
+                  <button className="p-1 bg-red-600 rounded hover:bg-red-700" onClick={() =>handleDelete(product.productName)}>
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </td>
