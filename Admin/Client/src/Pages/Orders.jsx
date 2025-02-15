@@ -1,5 +1,6 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Search, Filter, Eye, Truck, X, Check } from "lucide-react";
+import axios from "axios";
 
 const OrdersPage = () => {
   const [orders, setOrders] = useState([
@@ -17,6 +18,23 @@ const OrdersPage = () => {
   ]);
 
   const [searchTerm, setSearchTerm] = useState("");
+  
+  useEffect(() => {
+    const fetchOrderDetails = async () => {
+      try {
+        const response = await axios.get("http://localhost:5000/getOrder");
+        setOrders(response.data); // Update state with fetched products
+        console.log("Fetched orders:", response.data);
+      } catch (error) {
+        console.error("Error fetching order details:", error);
+      }
+    };
+
+    fetchOrderDetails();
+
+    // Listen for real-time updates from the server
+  }, []);
+
 
   const getStatusColor = (status) => {
     const colors = {
@@ -94,7 +112,7 @@ const OrdersPage = () => {
           <tbody className="divide-y divide-gray-700">
             {orders.map((order) => (
               <tr key={order.id} className="hover:bg-gray-700">
-                <td className="px-6 py-4 text-sm text-gray-200">{order.id}</td>
+                <td className="px-6 py-4 text-sm text-gray-200">{order.orderId}</td>
                 <td className="px-6 py-4 text-sm text-gray-200">
                   {order.customerName}
                 </td>
@@ -128,12 +146,12 @@ const OrdersPage = () => {
                 <td className="px-6 py-4 text-sm">
                   <span
                     className={`px-2 py-1 text-xs rounded-full ${
-                      order.paymentStatus === "Paid"
+                      order.paymentStatus === "Paid" || "paid"
                         ? "bg-green-600"
                         : "bg-red-600"
                     }`}
                   >
-                    {order.paymentStatus}
+                    {order.payment}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-200">

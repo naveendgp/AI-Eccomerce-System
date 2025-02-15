@@ -14,6 +14,8 @@ const singleProduct = require('./Router/SingleProduct');
 const chatbot = require('./Router/Huggingface');
 const DeleteProduct = require('./Router/DeleteProduct');
 const UpdateProduct = require('./Router/UpdateProduct');
+const placeOrder = require('./Router/PlaceOrder');
+const getOrder = require('./Router/GetOrder');
 
 const port = 5000;
 
@@ -38,40 +40,10 @@ mongoose.connect(mongoURI)
 
 const Product = require('./Models/ProductModel');
 
-const productChangeStream = Product.watch();
 
-productChangeStream.on('change', (change) => {
-    console.log('Change detected in Product collection:', change);
-
-    switch (change.operationType) {
-        case 'insert':
-            io.emit('productAdded', change.fullDocument);
-            break;
-        case 'update':
-            io.emit('productUpdated', change.fullDocument || change.documentKey);
-            break;
-        case 'delete':
-            io.emit('productDeleted', change.documentKey._id);
-            break;
-        default:
-            console.log('Unhandled change type:', change.operationType);
-    }
-});
 
 // Socket.io connection handler
-io.on('connection', (socket) => {
-    console.log('A user connected:', socket.id);
 
-    socket.on('chatMessage', (message) => {
-        console.log('Message received:', message);
-        // Broadcast the message to all connected clients
-        io.emit('chatMessage', message);
-    });
-
-    socket.on('disconnect', () => {
-        console.log('A user disconnected:', socket.id);
-    });
-});
 
 // Routes
 app.use('/register', Register);
@@ -83,6 +55,8 @@ app.use('/getProduct', GetProduct);
 app.use('/singleProduct', singleProduct);
 app.use('/deleteProduct', DeleteProduct);
 app.use('/updateProduct', UpdateProduct);
+app.use('/placeOrder', placeOrder);
+app.use('/getOrder', getOrder);
 app.use('/chatbot', chatbot);
 
 // Start the server

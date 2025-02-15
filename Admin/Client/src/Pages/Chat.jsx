@@ -88,28 +88,6 @@ const Chat = () => {
     ],
   };
 
-  const determineCategory = (productName) => {
-    const lowerProduct = productName.toLowerCase();
-
-    // Check for exact matches first
-    for (const [category, products] of Object.entries(productCategories)) {
-      if (products.includes(lowerProduct)) {
-        return category;
-      }
-    }
-
-    // Check for partial matches
-    for (const [category, products] of Object.entries(productCategories)) {
-      for (const product of products) {
-        if (lowerProduct.includes(product) || product.includes(lowerProduct)) {
-          return category;
-        }
-      }
-    }
-
-    return "other"; // Default category if no match is found
-  };
-
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -124,9 +102,11 @@ const Chat = () => {
   const [currentProduct, setCurrentProduct] = useState(null);
   const [awaitingPrice, setAwaitingPrice] = useState(false);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
-  const [awaitingDetails, setAwaitingDetails] = useState(false); // For multi-step add product flow
+  const [awaitingDetails, setAwaitingDetails] = useState(false);
+  const [awaitingOrderDetails, setAwaitingOrderDetails] = useState(false);
   const messagesEndRef = useRef(null);
 
+  // Utility Functions
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -134,6 +114,17 @@ const Chat = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const determineCategory = (productName) => {
+    const lowerProduct = productName.toLowerCase();
+
+    for (const [category, products] of Object.entries(productCategories)) {
+      if (products.includes(lowerProduct)) {
+        return category;
+      }
+    }
+    return "other";
+  };
 
   const addBotMessage = (text, isError = false) => {
     setMessages((prev) => [
@@ -148,44 +139,141 @@ const Chat = () => {
     ]);
   };
 
-  const processMessage = async (userMessage) => {
-    const lowerMessage = userMessage.toLowerCase();
-
-    // Handle multi-step flows
-    if (awaitingPrice) {
-      return handlePriceInput(userMessage);
+  
+ const processMessage = async (userMessage) => {
+   const lowerMessage = userMessage.toLowerCase();
+   let intentHandled = false; // Flag to track if intent was handled
+   let botResponse = "";
+    if(lowerMessage.includes("hello")){
+      botResponse = "Hello! I'm your Admin assistant. How can I help you with your products today?";  
     }
-    if (awaitingConfirmation) {
-      return handleConfirmation(userMessage);
+    if(lowerMessage.includes("order")){
+      botResponse = "Please provide the order details in this format: Customer Name, Payment Method, Product Name and Quantity, Total Amount";
     }
-    if (awaitingDetails) {
-      return handleAddProductDetails(userMessage);
-    }
-
-    // Detect intent
-    if (lowerMessage.includes("update") && lowerMessage.includes("price")) {
-      return handleUpdatePrice(userMessage);
-    } else if (lowerMessage.includes("delete")) {
-      return handleDelete(userMessage);
-    } else if (
-      lowerMessage.includes("add") ||
-      lowerMessage.includes("insert")
-    ) {
-      return handleAdd(userMessage);
-    } else if (lowerMessage.includes("show") || lowerMessage.includes("list")) {
-      return handleListProducts(userMessage);
-    } else if (lowerMessage.includes("help")) {
-      return `I can help you with:
+   // Handle multi-step flows
+   if (awaitingOrderDetails) {
+     intentHandled = true;
+     botResponse = await collectOrderDetails(userMessage);
+   } else if (awaitingPrice) {
+     intentHandled = true;
+     botResponse = await handlePriceInput(userMessage);
+   } else if (awaitingConfirmation) {
+     intentHandled = true;
+     botResponse = await handleConfirmation(userMessage);
+   } else if (awaitingDetails) {
+     intentHandled = true;
+     botResponse = await handleAddProductDetails(userMessage);
+   } else {
+     // Detect intent
+     if (lowerMessage.includes("update") && lowerMessage.includes("price")) {
+       intentHandled = true;
+       botResponse = await handleUpdatePrice(userMessage);
+     } else if (
+       lowerMessage.includes("place") ||
+       lowerMessage.includes("order")
+     ) {
+       intentHandled = true;
+       console.log("Order intent detected"); // Debugging log
+       setAwaitingOrderDetails(true);
+       botResponse = `Please provide the order details in this format:
+Customer Name, Payment Method, Product Name and Quantity, Total Amount
+For example: John Doe, Cash, Tomatoes 2kg, 500`;
+     } else if (lowerMessage.includes("delete")) {
+       intentHandled = true;
+       botResponse = await handleDelete(userMessage);
+     } else if (
+       lowerMessage.includes("add") ||
+       lowerMessage.includes("insert")
+     ) {
+       intentHandled = true;
+       botResponse = await handleAdd(userMessage);
+     } else if (
+       lowerMessage.includes("show") ||
+       lowerMessage.includes("list")
+     ) {
+       intentHandled = true;
+       botResponse = await handleListProducts(userMessage);
+     } else if (lowerMessage.includes("help")) {
+       intentHandled = true;
+       botResponse = `I can help you with:
 - Updating product prices
 - Adding new products
 - Deleting products
 - Showing product listings
+- Placing orders
 What would you like to do?`;
-    } else {
-      return "I'm sorry, I didn't understand that. Type 'help' for a list of commands.";
+     }
+   }
+
+   // If intent was handled by custom logic, return the response
+   if (intentHandled) {
+     return botResponse;
+   }
+
+   // If intent was not handled, call the Hugging Face API
+   return callHuggingFaceAPI(userMessage);
+ };
+
+ const callHuggingFaceAPI = async (userMessage) => {
+   try {
+     const response = await axios.post(
+       "https://api-inference.huggingface.co/models/your-model-name",
+       {
+         inputs: userMessage,
+       },
+       {
+         headers: {
+           Authorization: `Bearer YOUR_HUGGING_FACE_API_KEY`,
+         },
+       }
+     );
+     return response.data[0].generated_text;
+   } catch (error) {
+     console.error("Error calling Hugging Face API:", error);
+     return "Sorry, I couldn't process your request. Please try again.";
+   }
+ };
+
+  // Order Handling
+  const collectOrderDetails = async (message) => {
+    console.log("Collecting order details:", message); // Debugging log
+
+    const details = message.split(",").map((detail) => detail.trim());
+
+    if (details.length < 4) {
+      return "Please provide all details in this format: Customer Name, Payment Method, Product Name and Quantity, Total Amount";
+    }
+
+    const [customerName, paymentMethod, products, totalAmount] = details;
+
+    const order = {
+      orderId: "ORD" + Math.floor(Math.random() * 1000000),
+      customerName,
+      paymentMethod,
+      products,
+      totalAmount: parseFloat(totalAmount),
+      orderDate: new Date().toISOString().split("T")[0],
+      status: "Pending",
+    };
+
+    try {
+      const response = await axios.post(
+        "http://localhost:5000/addorder",
+        order
+      );
+      setAwaitingOrderDetails(false);
+      return `Order placed successfully!
+Order ID: ${order.orderId}
+Customer: ${customerName}
+Products: ${products}
+Total: Rs.${totalAmount}`;
+    } catch (error) {
+      console.error("Error placing order:", error);
+      return "Sorry, I couldn't place the order. Please try again.";
     }
   };
 
+  // Product Management
   const handleUpdatePrice = async (message) => {
     const productMatch = message.match(
       /(?:price of|update)\s+(\w+)(?:\s+to\s+(\d+))?/i
@@ -226,46 +314,14 @@ What would you like to do?`;
 
   const handlePriceUpdate = async (productName, newPrice) => {
     try {
-      const response = await axios.put(`/api/products/${productName}`, {
+      await axios.put(`http://localhost:5000/updateProduct/${productName}`, {
         price: newPrice,
       });
 
       setAwaitingConfirmation(true);
-      return `I'll update the price of ${productName} from Rs.${currentProduct.price} to Rs.${newPrice}. Is this correct? (Yes/No)`;
+      return `I'll update the price of ${productName} to Rs.${newPrice}. Is this correct? (Yes/No)`;
     } catch (error) {
       return "Sorry, I couldn't update the price. Please try again.";
-    }
-  };
-
-  const handleConfirmation = async (message) => {
-    setAwaitingConfirmation(false);
-
-    if (message.toLowerCase().includes("yes")) {
-      try {
-        await axios.put(`/api/products/${currentProduct.name}`, {
-          price: currentProduct.newPrice,
-        });
-        return "Great! I've updated the price successfully.";
-      } catch (error) {
-        return "Sorry, there was an error updating the price.";
-      }
-    } else {
-      return "Okay, I won't update the price. Is there anything else I can help you with?";
-    }
-  };
-
-  const handleDelete = async (message) => {
-    const productMatch = message.match(/delete\s+(\w+)/i);
-    if (!productMatch) {
-      return "Which product would you like to delete?";
-    }
-
-    const productName = productMatch[1];
-    try {
-      await axios.delete(`/api/products/${productName}`);
-      return `I've deleted ${productName} from the database.`;
-    } catch (error) {
-      return `I couldn't delete ${productName}. Please check if the product exists.`;
     }
   };
 
@@ -279,32 +335,25 @@ What would you like to do?`;
     setCurrentProduct({ name: productName });
     setAwaitingDetails(true);
     return `Please provide details for ${productName} in this format:
-- Quantity: [number]
-- Price: [number]
-- Freshness: [fresh/good/average]
-- Location: [location]`;
+Quantity [number], Price [number], Freshness [fresh/good/average], Location [location]`;
   };
 
   const handleAddProductDetails = async (message) => {
-    const detailsMatch = message.match(
-      /quantity\s+(\d+).*price\s+(\d+).*freshness\s+(\w+).*location\s+([a-zA-Z\s]+)/i
-    );
-    if (!detailsMatch) {
-      return "Please provide all required details in the correct format.";
+    const details = message.split(",").map((detail) => detail.trim());
+
+    if (details.length < 4) {
+      return "Please provide all required details: Quantity, Price, Freshness, Location";
     }
 
-    const [, quantity, price, freshness, location] = detailsMatch;
+    const [quantity, price, freshness, location] = details;
     const category = determineCategory(currentProduct.name);
 
     try {
-      const currentDate = new Date();
-      const formattedDate = currentDate.toISOString().split("T")[0]; // YYYY-MM-DD format
-
       const response = await axios.post("http://localhost:5000/addproduct", {
         productName: currentProduct.name,
         productPrice: parseInt(price),
         productQuantity: parseInt(quantity),
-        HarvestDate: formattedDate,
+        HarvestDate: new Date().toISOString().split("T")[0],
         productFreshness: freshness,
         productCategory: category,
         productLocation: location,
@@ -312,13 +361,12 @@ What would you like to do?`;
       });
 
       setAwaitingDetails(false);
-      return `I've added ${currentProduct.name} with the following details:
-- Category: ${category}
-- Price: Rs.${price}
-- Quantity: ${quantity}
-- Freshness: ${freshness}
-- Location: ${location}
-- Harvest Date: ${formattedDate}`;
+      return `Added ${currentProduct.name} successfully!
+Category: ${category}
+Price: Rs.${price}
+Quantity: ${quantity}kg
+Freshness: ${freshness}
+Location: ${location}`;
     } catch (error) {
       console.error("Error adding product:", error);
       return "Sorry, I couldn't add the product. Please try again.";
@@ -329,14 +377,29 @@ What would you like to do?`;
     try {
       const response = await axios.get("http://localhost:5000/getproduct");
       const products = response.data.data;
-      return `Here are the current products:\n${products
+      return `Current Products:\n${products
         .map(
           (p) =>
-            `- ${p.productName}: Rs.${p.productPrice} (Quantity: ${p.productQuantity})`
+            `- ${p.productName}: Rs.${p.productPrice} (${p.productQuantity}kg)`
         )
         .join("\n")}`;
     } catch (error) {
       return "Sorry, I couldn't retrieve the product list.";
+    }
+  };
+
+  const handleDelete = async (message) => {
+    const productMatch = message.match(/delete\s+(\w+)/i);
+    if (!productMatch) {
+      return "Which product would you like to delete?";
+    }
+
+    const productName = productMatch[1];
+    try {
+      await axios.delete(`http://localhost:5000/deleteProduct/${productName}`);
+      return `Deleted ${productName} from the database.`;
+    } catch (error) {
+      return `Couldn't delete ${productName}. Please check if it exists.`;
     }
   };
 
