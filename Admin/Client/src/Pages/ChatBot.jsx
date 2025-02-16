@@ -7,87 +7,14 @@ import {
   Image,
   MoreHorizontal,
   Send,
+  Package2,
 } from "lucide-react";
 
-const Chat = () => {
-  const productCategories = {
-    vegetables: [
-      "tomato",
-      "potato",
-      "onion",
-      "carrot",
-      "cabbage",
-      "broccoli",
-      "spinach",
-      "cucumber",
-      "lettuce",
-      "pepper",
-      "beetroot",
-      "corn",
-      "peas",
-      "beans",
-      "cauliflower",
-      "eggplant",
-      "celery",
-      "asparagus",
-      "garlic",
-      "green chilly",
-      "green beans",
-      "bell pepper",
-      "lady finger",
-      "bitter gourd",
-      "bottle gourd",
-      "ridge gourd",
-      "snake gourd",
-      "ivy gourd",
-      "cluster beans",
-    ],
-    fruits: [
-      "apple",
-      "banana",
-      "orange",
-      "grape",
-      "mango",
-      "strawberry",
-      "pineapple",
-      "watermelon",
-      "kiwi",
-      "peach",
-      "pear",
-      "plum",
-      "cherry",
-      "blueberry",
-      "raspberry",
-      "blackberry",
-      "pomegranate",
-      "papaya",
-      "guava",
-      "fig",
-      "dragonfruit",
-      "passion fruit",
-      "lychee",
-      "coconut",
-    ],
-    grains: [
-      "rice",
-      "wheat",
-      "corn",
-      "barley",
-      "oats",
-      "millet",
-      "quinoa",
-      "rye",
-      "sorghum",
-      "buckwheat",
-      "amaranth",
-      "teff",
-      "wild rice",
-      "kamut",
-      "spelt",
-      "triticale",
-    ],
-  };
+import Emoji from "../data/Emoji";
 
+import productCategories from "../data/ProductCategories";
+
+const Chat = () => {
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -349,7 +276,21 @@ Status: ${order.status}`;
   };
 
   const handleAdd = async (message) => {
-    const productMatch = message.match(/add\s+([a-zA-Z\s]+)/i);
+    // Check if the message contains an emoji
+    const emoji = Object.keys(Emoji).find((emoji) =>
+      message.includes(emoji)
+    );
+
+    // Replace the emoji with the corresponding product name
+    let processedMessage = message;
+    if (emoji) {
+      processedMessage = processedMessage.replace(
+        emoji,
+        Emoji[emoji]
+      );
+    }
+
+    const productMatch = processedMessage.match(/add\s+([a-zA-Z\s]+)/i);
     if (!productMatch) {
       return "Which product would you like to add?";
     }
@@ -362,36 +303,75 @@ Quantity [number], Price [number], Freshness [fresh/good/average], Location [loc
   };
 
   const handleAddProductDetails = async (message) => {
-    const details = message.split(",").map((detail) => detail.trim());
-
-    if (details.length < 4) {
-      return "Please provide all required details: Quantity, Price, Freshness, Location";
-    }
-
-    const [quantity, price, freshness, location] = details;
-    const category = determineCategory(currentProduct.name);
-
     try {
+      // First check if the product exists
+      try {
+        const checkResponse = await axios.get(
+          `http://localhost:5000/singleproduct/${currentProduct.name}`
+        );
+
+        if (checkResponse.data) {
+          setAwaitingDetails(false);
+          setCurrentProduct(null);
+          return `A product with name "${currentProduct.name}" already exists in the database. Would you like to update it or add a different product?`;
+        }
+      } catch (error) {
+        if (error.response && error.response.status !== 404) {
+          throw error;
+        }
+      }
+      if (
+        message.toLowerCase().match(/cancel|exit|stop|don't|dont|no|never mind/)
+      ) {
+        setAwaitingDetails(false);
+        setCurrentProduct(null);
+        return "Product addition cancelled. What else can I help you with?";
+      }
+
+      const detailsMatch = message.match(
+        /quantity\s+(\d+).*price\s+(\d+).*freshness\s+(\w+).*location\s+([a-zA-Z\s]+)/i
+      );
+
+      if (!detailsMatch) {
+        return "Please provide all required details in the correct format.";
+      }
+
+      const [, quantity, price, freshness, location] = detailsMatch;
+      const category = determineCategory(currentProduct.name);
+
+      // If we get here, the product doesn't exist, so we can add it
+      const currentDate = new Date();
+      const formattedDate = currentDate.toISOString().split("T")[0];
+
       const response = await axios.post("http://localhost:5000/addproduct", {
         productName: currentProduct.name,
         productPrice: parseInt(price),
         productQuantity: parseInt(quantity),
-        HarvestDate: new Date().toISOString().split("T")[0],
+        HarvestDate: formattedDate,
         productFreshness: freshness,
         productCategory: category,
         productLocation: location,
         productUnit: "kg",
       });
 
+      if (response.data.data.status === 422) {
+        setAwaitingDetails(false);
+        setCurrentProduct(null);
+        return "Product is already in the database. Please provide a new product name.";
+      }
+
       setAwaitingDetails(false);
-      return `Added ${currentProduct.name} successfully!
-Category: ${category}
-Price: Rs.${price}
-Quantity: ${quantity}kg
-Freshness: ${freshness}
-Location: ${location}`;
+      return `I've added ${currentProduct.name} with the following details:
+- Category: ${category}
+- Price: Rs.${price}
+- Quantity: ${quantity}
+- Freshness: ${freshness}
+- Location: ${location}
+- Harvest Date: ${formattedDate}`;
     } catch (error) {
       console.error("Error adding product:", error);
+      setAwaitingDetails(false);
+      setCurrentProduct(null);
       return "Sorry, I couldn't add the product. Please try again.";
     }
   };
@@ -400,14 +380,50 @@ Location: ${location}`;
     try {
       const response = await axios.get("http://localhost:5000/getproduct");
       const products = response.data.data;
-      return `Current Products:\n${products
-        .map(
-          (p) =>
-            `- ${p.productName}: Rs.${p.productPrice} (${p.productQuantity}kg)`
-        )
-        .join("\n")}`;
+
+      return (
+        <div className="p-4 rounded-lg shadow-md w-full max-w-md mx-auto my-2">
+          <div className="space-y-3">
+            <h2 className="text-lg font-semibold text-white">
+              Here are the current products:
+            </h2>
+            <div className="space-y-2">
+              {products.map((p) => (
+                <div
+                  className="flex justify-between items-center bg-gray-700 p-3 rounded-lg hover:bg-gray-600 transition-colors"
+                  key={p.productId}
+                >
+                  <div className="flex items-center gap-2">
+                    <Package2 className="h-5 w-5 text-blue-500" />
+                    <span className="font-medium text-white">
+                      {p.productName}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="block text-sm text-white">
+                      Rs.{p.productPrice}
+                    </span>
+                    <span className="block text-xs text-white">
+                      Quantity: {p.productQuantity}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
     } catch (error) {
-      return "Sorry, I couldn't retrieve the product list.";
+      return (
+        <div className="bg-white p-4 rounded-lg shadow-md w-full max-w-md mx-auto my-2">
+          <span className="text-xs text-gray-500">
+            Bot • {new Date().toLocaleTimeString()}
+          </span>
+          <p className="mt-2 text-red-500">
+            Sorry, I couldn't retrieve the product list.
+          </p>
+        </div>
+      );
     }
   };
 
