@@ -176,7 +176,7 @@ const ProductsPage = () => {
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-700">
-            {productdetails.map((product) => (
+            {products.map((product) => (
               <tr key={product._id} className="hover:bg-gray-700">
                 <td className="px-6 py-4 text-sm text-gray-200">
                   {product.productName}

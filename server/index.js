@@ -3,7 +3,6 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const http = require('http');
 const { Server } = require('socket.io'); // Import Server from socket.io
-
 const Register = require('./Router/Register');
 const Login = require('./Router/Login');
 const AdminLogin = require('./Router/AdminLogin');
@@ -14,7 +13,6 @@ const singleProduct = require('./Router/SingleProduct');
 const chatbot = require('./Router/Huggingface');
 const DeleteProduct = require('./Router/DeleteProduct');
 const UpdateProduct = require('./Router/UpdateProduct');
-
 const port = 5000;
 
 const app = express();
@@ -31,33 +29,12 @@ const io = new Server(server, {
     },
 });
 
-const mongoURI = 'mongodb://localhost:27017/Buyer';
+const mongoURI = 'mongodb+srv://madhiuksha:madhi%40551@mernstack.ymu81.mongodb.net/Buyer';
 mongoose.connect(mongoURI)
     .then(() => console.log('MongoDB connected'))
     .catch(err => console.log(err));
 
 const Product = require('./Models/ProductModel');
-
-const productChangeStream = Product.watch();
-
-productChangeStream.on('change', (change) => {
-    console.log('Change detected in Product collection:', change);
-
-    switch (change.operationType) {
-        case 'insert':
-            io.emit('productAdded', change.fullDocument);
-            break;
-        case 'update':
-            io.emit('productUpdated', change.fullDocument || change.documentKey);
-            break;
-        case 'delete':
-            io.emit('productDeleted', change.documentKey._id);
-            break;
-        default:
-            console.log('Unhandled change type:', change.operationType);
-    }
-});
-
 // Socket.io connection handler
 io.on('connection', (socket) => {
     console.log('A user connected:', socket.id);
