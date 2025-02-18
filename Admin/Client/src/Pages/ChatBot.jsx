@@ -8,117 +8,13 @@ import {
   MoreHorizontal,
   Send,
   Package2,
-  DollarSign,
-  Package,
 } from "lucide-react";
 
+import Emoji from "../data/Emoji";
+
+import productCategories from "../data/ProductCategories";
+
 const Chat = () => {
-  const HUGGING_FACE_API_KEY = "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";
-  const CLAUDE_API_KEY =
-    "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";
-  const AI_MODEL_URL =
-    "https://api-inference.huggingface.co/models/google/flan-t5-large";
-
-  const productCategories = {
-    vegetables: [
-      "tomato",
-      "potato",
-      "onion",
-      "carrot",
-      "cabbage",
-      "broccoli",
-      "spinach",
-      "cucumber",
-      "lettuce",
-      "pepper",
-      "beetroot",
-      "corn",
-      "peas",
-      "beans",
-      "cauliflower",
-      "eggplant",
-      "celery",
-      "asparagus",
-      "garlic",
-      "green chilly",
-      "green beans",
-      "bell pepper",
-      "lady finger",
-      "bitter gourd",
-      "bottle gourd",
-      "ridge gourd",
-      "snake gourd",
-      "ivy gourd",
-      "cluster beans",
-    ],
-    fruits: [
-      "apple",
-      "banana",
-      "orange",
-      "grape",
-      "mango",
-      "strawberry",
-      "pineapple",
-      "watermelon",
-      "kiwi",
-      "peach",
-      "pear",
-      "plum",
-      "cherry",
-      "blueberry",
-      "raspberry",
-      "blackberry",
-      "pomegranate",
-      "papaya",
-      "guava",
-      "fig",
-      "dragonfruit",
-      "passion fruit",
-      "lychee",
-      "coconut",
-    ],
-    grains: [
-      "rice",
-      "wheat",
-      "corn",
-      "barley",
-      "oats",
-      "millet",
-      "quinoa",
-      "rye",
-      "sorghum",
-      "buckwheat",
-      "amaranth",
-      "teff",
-      "wild rice",
-      "kamut",
-      "spelt",
-      "triticale",
-    ],
-  };
-
-  const determineCategory = (productName) => {
-    const lowerProduct = productName.toLowerCase();
-
-    // Check for exact matches first
-    for (const [category, products] of Object.entries(productCategories)) {
-      if (products.includes(lowerProduct)) {
-        return category;
-      }
-    }
-
-    // Check for partial matches
-    for (const [category, products] of Object.entries(productCategories)) {
-      for (const product of products) {
-        if (lowerProduct.includes(product) || product.includes(lowerProduct)) {
-          return category;
-        }
-      }
-    }
-
-    return "other"; // Default category if no match is found
-  };
-
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -133,10 +29,11 @@ const Chat = () => {
   const [currentProduct, setCurrentProduct] = useState(null);
   const [awaitingPrice, setAwaitingPrice] = useState(false);
   const [awaitingConfirmation, setAwaitingConfirmation] = useState(false);
-  const [awaitingDetails, setAwaitingDetails] = useState(false); // For multi-step add product flow
+  const [awaitingDetails, setAwaitingDetails] = useState(false);
+  const [awaitingOrderDetails, setAwaitingOrderDetails] = useState(false);
   const messagesEndRef = useRef(null);
-  const [aiContext, setAiContext] = useState([]);
 
+  // Utility Functions
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   };
@@ -144,6 +41,17 @@ const Chat = () => {
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
+
+  const determineCategory = (productName) => {
+    const lowerProduct = productName.toLowerCase();
+
+    for (const [category, products] of Object.entries(productCategories)) {
+      if (products.includes(lowerProduct)) {
+        return category;
+      }
+    }
+    return "other";
+  };
 
   const addBotMessage = (text, isError = false) => {
     setMessages((prev) => [
@@ -158,206 +66,231 @@ const Chat = () => {
     ]);
   };
 
-const getAIResponse = async (userMessage) => {
-  try {
-    const systemMessage = `You are an AI assistant. Answer briefly and clearly.`;
-    const inputMessage = `${systemMessage}\n\nUser: ${userMessage}\nAI: `;
-
-    const response = await axios.post(
-      "https://api-inference.huggingface.co/models/gpt2-medium", // Updated model
-      {
-        inputs: inputMessage,
-        parameters: {
-          max_length: 100, // Limit the response length
-          temperature: 0.7, // Adjust randomness
-          top_p: 0.9, // For coherent responses
-          do_sample: true,
-        },
-      },
-      {
-        headers: {
-          Authorization: `Bearer ${HUGGING_FACE_API_KEY}`, // Replace with your key
-          "Content-Type": "application/json",
-        },
-      }
-    );
-
-    const generatedText = response.data.generated_text.trim();
-    setAiContext((prev) => [...prev, userMessage, generatedText]);
-
-    return generatedText || "Sorry, I couldn't generate a response.";
-  } catch (error) {
-    console.error("GPT API Error:", error);
-    return "Sorry, there was an error processing your request. Please try again.";
-  }
-};
-
-
-
-
-
- const processMessage = async (userMessage) => {
-   const updatePriceRegex =
-     /(?:update|change)\s+(?:the\s+)?price\s+of\s+(\w+)/i;
-   const lowerMessage = userMessage.toLowerCase();
-
-   // Handle existing command flows first
-    if (awaitingPrice) return handlePriceInput(userMessage); // Handle price input
-    if (awaitingConfirmation) return handleConfirmation(userMessage);
-    if (awaitingDetails) return handleAddProductDetails(userMessage);
-
-   // Check for specific commands
-   if (updatePriceRegex.test(lowerMessage)) {
-     const productMatch = lowerMessage.match(updatePriceRegex);
-     const productName = productMatch[1]; // Extract the product name
-     return handleUpdatePrice(productName);
-   } else if (lowerMessage.includes("delete")) {
-     return handleDelete(userMessage);
-   } else if (lowerMessage.includes("add") || lowerMessage.includes("insert")) {
-     return handleAdd(userMessage);
-   } else if (lowerMessage.includes("show") || lowerMessage.includes("list")) {
-     return handleListProducts(userMessage);
-   } else if (lowerMessage.includes("help")) {
-     return `I can help you with:
+  const processMessage = async (userMessage) => {
+    const lowerMessage = userMessage.toLowerCase();
+    let intentHandled = false; // Flag to track if intent was handled
+    let botResponse = "";
+    if (lowerMessage.includes("hello")) {
+      botResponse =
+        "Hello! I'm your Admin assistant. How can I help you with your products today?";
+    }
+    if (lowerMessage.includes("order")) {
+      botResponse =
+        "Please provide the order details in this format: Customer Name, Payment Method, Product Name and Quantity, Total Amount";
+    }
+    // Handle multi-step flows
+    if (awaitingOrderDetails) {
+      intentHandled = true;
+      botResponse = await collectOrderDetails(userMessage);
+    } else if (awaitingPrice) {
+      intentHandled = true;
+      botResponse = await handlePriceInput(userMessage);
+    } else if (awaitingConfirmation) {
+      intentHandled = true;
+      botResponse = await handleConfirmation(userMessage);
+    } else if (awaitingDetails) {
+      intentHandled = true;
+      botResponse = await handleAddProductDetails(userMessage);
+    } else {
+      // Detect intent
+      if (lowerMessage.includes("update") && lowerMessage.includes("price")) {
+        intentHandled = true;
+        botResponse = await handleUpdatePrice(userMessage);
+      } else if (
+        lowerMessage.includes("place") ||
+        lowerMessage.includes("order")
+      ) {
+        intentHandled = true;
+        console.log("Order intent detected"); // Debugging log
+        setAwaitingOrderDetails(true);
+        botResponse = `Please provide the order details in this format:
+Customer Name, Payment Method, Product Name and Quantity, Total Amount
+For example: John Doe, Cash, Tomatoes 2kg, 500`;
+      } else if (lowerMessage.includes("delete")) {
+        intentHandled = true;
+        botResponse = await handleDelete(userMessage);
+      } else if (
+        lowerMessage.includes("add") ||
+        lowerMessage.includes("insert")
+      ) {
+        intentHandled = true;
+        botResponse = await handleAdd(userMessage);
+      } else if (
+        lowerMessage.includes("show") ||
+        lowerMessage.includes("list")
+      ) {
+        intentHandled = true;
+        botResponse = await handleListProducts(userMessage);
+      } else if (lowerMessage.includes("help")) {
+        intentHandled = true;
+        botResponse = `I can help you with:
 - Updating product prices
 - Adding new products
 - Deleting products
 - Showing product listings
-- General farming advice and questions
+- Placing orders
 What would you like to do?`;
-   }
-
-   // If no specific command is matched, use AI for response
-   const aiResponse = await getAIResponse(userMessage);
-   if (aiResponse) {
-     return aiResponse;
-   }
-
-   // Fallback response if AI fails
-   return "I'm sorry, I couldn't understand that. Type 'help' for a list of commands or ask me any farming-related questions.";
- };
-
-const handleUpdatePrice = async (productName) => {
-  try {
-    // Step 1: Check if the product exists
-    const productResponse = await axios.get(
-      `http://localhost:5000/singleproduct/${productName}`
-    );
-    const product = productResponse.data;
-
-    if (!product) {
-      return `I couldn't find a product named "${productName}" in the database. Please check the product name.`;
+      }
     }
 
-    // Step 2: Set the current product in the state
-    setCurrentProduct(product); // Save the product for later use
+    // If intent was handled by custom logic, return the response
+    if (intentHandled) {
+      return botResponse;
+    }
 
-    // Step 3: Ask the user for the new price
-    setAwaitingPrice(true); // Set awaitingPrice to true
-    return `Please provide the new price for ${productName}.`;
-  } catch (error) {
-    return "Sorry, there was an error fetching the product details.";
-  }
-};
+    // If intent was not handled, call the Hugging Face API
+    return callHuggingFaceAPI(userMessage);
+  };
 
-  let PRODUCT_NAME = "" 
- const handlePriceInput = async (message) => {
-   const priceMatch = message.match(/(\d+)/);
+  const callHuggingFaceAPI = async (userMessage) => {
+    try {
+      const response = await axios.post(
+        "https://api-inference.huggingface.co/models/your-model-name",
+        {
+          inputs: userMessage,
+        },
+        {
+          headers: {
+            Authorization: `Bearer YOUR_HUGGING_FACE_API_KEY`,
+          },
+        }
+      );
+      return response.data[0].generated_text;
+    } catch (error) {
+      console.error("Error calling Hugging Face API:", error);
+      return "Sorry, I couldn't process your request. Please try again.";
+    }
+  };
 
-   if (!priceMatch) {
-     return "Please provide a valid price in numbers.";
-   }
+  // Order Handling
+  const collectOrderDetails = async (message) => {
+    console.log("Collecting order details:", message); // Debugging log
 
-   const newPrice = parseFloat(priceMatch[1]); // Convert the price to a number
-   if (isNaN(newPrice)) {
-     return "Please provide a valid price in numbers.";
-   }
+    // Split the message into details
+    const details = message.split(",").map((detail) => detail.trim());
 
-   // Check if currentProduct is null
-   if (!currentProduct) {
-     return "Sorry, I couldn't find the product details. Please try again.";
-   }
+    // Validate the number of details provided
+    if (details.length < 5) {
+      return "Please provide all details in this format: Customer Name, Payment Method, Product Name and Quantity, Total Amount, Delivery Date (optional)";
+    }
 
-   PRODUCT_NAME = currentProduct.productName;
-   console.log("product", currentProduct);
-   setAwaitingPrice(false); // Reset awaitingPrice to false
-   return handlePriceUpdate(PRODUCT_NAME, newPrice); // Proceed to update the price
- };
+    // Extract details
+    const [customerName, payment, products, total, deliveryDate] = details;
 
-const handlePriceUpdate = async (product, newPrice) => {
-  // Check if product is null
-  if (!product) {
-    return "Sorry, I couldn't find the product details. Please try again.";
-  }
+    // Set order date to today (as an array)
+    const orderDate = [new Date().toISOString().split("T")[0]]; // Format: ["YYYY-MM-DD"]
 
-  try {
-    // Step 1: Prepare the update payload
-    const updatePayload = { productPrice: newPrice };
+    // Parse delivery date (if provided)
+    const parsedDeliveryDate = deliveryDate
+      ? new Date(deliveryDate)
+      : new Date(); // Default to today if not provided
 
-    // Log the payload for debugging
-    console.log("Sending update payload:", updatePayload);
+    // Create the order object
+    const order = {
+      orderId: "ORD" + Math.floor(Math.random() * 1000000), // Generate a random order ID
+      customerName,
+      payment,
+      orderDate,
+      products: [products], // Store products as an array
+      total: parseFloat(total),
+      status: "Pending", // Default status
+      deliveryDate: parsedDeliveryDate, // Use provided date or default to today
+    };
 
-    // Step 2: Send the update request to the API
-    const response = await axios.put(
-      `http://localhost:5000/updateProduct/${product}`,
-      updatePayload
+    try {
+      // Send the order to the backend
+      const response = await axios.post(
+        "http://localhost:5000/placeorder",
+        order
+      );
+
+      // Reset the state
+      setAwaitingOrderDetails(false);
+
+      // Return a success message with order details
+      return `Order placed successfully!
+Order ID: ${order.orderId}
+Customer: ${customerName}
+Payment Method: ${payment}
+Products: ${products}
+Total: Rs.${total}
+Order Date: ${orderDate[0]}
+Delivery Date: ${parsedDeliveryDate.toISOString().split("T")[0]}
+Status: ${order.status}`;
+    } catch (error) {
+      console.error("Error placing order:", error);
+      return "Sorry, I couldn't place the order. Please try again.";
+    }
+  };
+
+  // Product Management
+  const handleUpdatePrice = async (message) => {
+    const productMatch = message.match(
+      /(?:price of|update)\s+(\w+)(?:\s+to\s+(\d+))?/i
     );
-
-    // Log the API response for debugging
-    console.log("API response:", response.data);
-
-    // Step 3: Update the state with the new price
-    setCurrentProduct((prevProduct) => ({ ...prevProduct, price: newPrice }));
-
-    // Step 4: Ask for confirmation
-    setAwaitingConfirmation(true); // Set awaitingConfirmation to true
-    return `I'll update the price of ${product} from Rs.${product.price} to Rs.${newPrice}. Is this correct? (Yes/No)`;
-  } catch (error) {
-    console.error(
-      "Error updating price:",
-      error.response?.data || error.message
-    );
-    return "Sorry, I couldn't update the price. Please try again.";
-  }
-};
-
- const handleConfirmation = async (message) => {
-   setAwaitingConfirmation(false);
-
-   if (message.toLowerCase().includes("yes")) {
-     try {
-       await axios.put(
-         `http://localhost:5000/updateProduct/${currentProduct.name}`,
-         {
-           productPrice: currentProduct.newPrice,
-         }
-       );
-       return "Great! I've updated the price successfully.";
-     } catch (error) {
-       return "Sorry, there was an error updating the price.";
-     }
-   } else {
-     return "Okay, I won't update the price. Is there anything else I can help you with?";
-   }
- };
-
-  const handleDelete = async (message) => {
-    const productMatch = message.match(/delete\s+(\w+)/i);
     if (!productMatch) {
-      return "Which product would you like to delete?";
+      return "Could you specify which product you'd like to update?";
     }
 
     const productName = productMatch[1];
+    const newPrice = productMatch[2];
+
     try {
-      await axios.delete(`http://localhost:5000/deleteproduct/${productName}`);
-      return `I've deleted ${productName} from the database.`;
+      const response = await axios.get(
+        `http://localhost:5000/singleProduct/${productName}`
+      );
+      setCurrentProduct(response.data);
+
+      if (!newPrice) {
+        setAwaitingPrice(true);
+        return `Could you please provide the new price for ${productName}?`;
+      }
+
+      return handlePriceUpdate(productName, newPrice);
     } catch (error) {
-      return `I couldn't delete ${productName}. Please check if the product exists.`;
+      return `I couldn't find ${productName} in our database. Please check the product name.`;
+    }
+  };
+
+  const handlePriceInput = async (message) => {
+    const priceMatch = message.match(/(\d+)/);
+    if (!priceMatch) {
+      return "Please provide a valid price in numbers.";
+    }
+
+    setAwaitingPrice(false);
+    return handlePriceUpdate(currentProduct.name, priceMatch[1]);
+  };
+
+  const handlePriceUpdate = async (productName, newPrice) => {
+    try {
+      await axios.put(`http://localhost:5000/updateProduct/${productName}`, {
+        price: newPrice,
+      });
+
+      setAwaitingConfirmation(true);
+      return `I'll update the price of ${productName} to Rs.${newPrice}. Is this correct? (Yes/No)`;
+    } catch (error) {
+      return "Sorry, I couldn't update the price. Please try again.";
     }
   };
 
   const handleAdd = async (message) => {
-    const productMatch = message.match(/add\s+([a-zA-Z\s]+)/i);
+    // Check if the message contains an emoji
+    const emoji = Object.keys(Emoji).find((emoji) =>
+      message.includes(emoji)
+    );
+
+    // Replace the emoji with the corresponding product name
+    let processedMessage = message;
+    if (emoji) {
+      processedMessage = processedMessage.replace(
+        emoji,
+        Emoji[emoji]
+      );
+    }
+
+    const productMatch = processedMessage.match(/add\s+([a-zA-Z\s]+)/i);
     if (!productMatch) {
       return "Which product would you like to add?";
     }
@@ -366,10 +299,7 @@ const handlePriceUpdate = async (product, newPrice) => {
     setCurrentProduct({ name: productName });
     setAwaitingDetails(true);
     return `Please provide details for ${productName} in this format:
-- Quantity: [number]
-- Price: [number]
-- Freshness: [fresh/good/average]
-- Location: [location]`;
+Quantity [number], Price [number], Freshness [fresh/good/average], Location [location]`;
   };
 
   const handleAddProductDetails = async (message) => {
@@ -497,6 +427,21 @@ const handlePriceUpdate = async (product, newPrice) => {
     }
   };
 
+  const handleDelete = async (message) => {
+    const productMatch = message.match(/delete\s+(\w+)/i);
+    if (!productMatch) {
+      return "Which product would you like to delete?";
+    }
+
+    const productName = productMatch[1];
+    try {
+      await axios.delete(`http://localhost:5000/deleteProduct/${productName}`);
+      return `Deleted ${productName} from the database.`;
+    } catch (error) {
+      return `Couldn't delete ${productName}. Please check if it exists.`;
+    }
+  };
+
   const handleSend = async () => {
     if (!newMessage.trim()) return;
 
@@ -507,44 +452,19 @@ const handlePriceUpdate = async (product, newPrice) => {
       loading: false,
     };
 
-    const loadingMessage = {
-      id: Date.now() + 1,
-      type: "bot",
-      loading: true,
-    };
-
-    setMessages((prev) => [...prev, userMessage, loadingMessage]);
-    setAiContext((prev) => [...prev, userMessage.text]);
+    setMessages((prev) => [...prev, userMessage]);
     setNewMessage("");
     setIsTyping(true);
     setError(null);
 
     try {
       const botResponse = await processMessage(userMessage.text);
-      // Remove loading message and add actual response
-      setMessages((prev) =>
-        prev
-          .filter((msg) => msg.id !== loadingMessage.id)
-          .concat({
-            id: Date.now() + 2,
-            type: "bot",
-            text: botResponse,
-            loading: false,
-          })
-      );
+      addBotMessage(botResponse);
     } catch (error) {
       console.error("Chat Error:", error);
-      // Remove loading message and add error message
-      setMessages((prev) =>
-        prev
-          .filter((msg) => msg.id !== loadingMessage.id)
-          .concat({
-            id: Date.now() + 2,
-            type: "bot",
-            text: "I encountered an error processing your request. Please try again.",
-            loading: false,
-            isError: true,
-          })
+      addBotMessage(
+        "An error occurred while processing your request. Please try again.",
+        true
       );
       setError(error.message);
     } finally {
@@ -552,71 +472,42 @@ const handlePriceUpdate = async (product, newPrice) => {
     }
   };
 
-  const Message = ({ message }) => {
-    if (message.loading) {
-      return (
-        <div className="flex justify-start mb-4">
-          <div className="flex flex-row items-end space-x-2">
-            <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center mr-2">
-              <Bot className="w-5 h-5 text-white" />
-            </div>
-            <div className="bg-gray-800 rounded-lg p-4 flex flex-col items-center space-x-2">
-              <span className="text-gray-300">Thinking</span>
-              <div className="flex space-x-1">
-                {[0, 1, 2].map((index) => (
-                  <div
-                    key={index}
-                    className="w-2 h-2 bg-blue-500 mt-3 rounded-full animate-bounce"
-                    style={{
-                      animationDuration: "1s",
-                      animationDelay: `${index * 0.2}s`,
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      );
-    }
-
-    return (
+  const Message = ({ message }) => (
+    <div
+      className={`flex ${
+        message.type === "user" ? "justify-end" : "justify-start"
+      } mb-4`}
+    >
       <div
         className={`flex ${
-          message.type === "user" ? "justify-end" : "justify-start"
-        } mb-4`}
+          message.type === "user" ? "flex-row-reverse" : "flex-row"
+        } items-end space-x-2`}
       >
         <div
-          className={`flex ${
-            message.type === "user" ? "flex-row-reverse" : "flex-row"
-          } items-end space-x-2`}
+          className={`w-8 h-8 rounded-full flex items-center justify-center ${
+            message.type === "user" ? "bg-blue-500 ml-2" : "bg-gray-700 mr-2"
+          }`}
         >
-          <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center ${
-              message.type === "user" ? "bg-blue-500 ml-2" : "bg-gray-700 mr-2"
-            }`}
-          >
-            {message.type === "user" ? (
-              <User className="w-5 h-5 text-white" />
-            ) : (
-              <Bot className="w-5 h-5 text-white" />
-            )}
-          </div>
-          <div
-            className={`${
-              message.type === "user"
-                ? "bg-blue-600 text-white"
-                : message.isError
-                ? "bg-red-900 text-white"
-                : "bg-gray-800 text-gray-100"
-            } rounded-lg p-4 max-w-[80%] whitespace-pre-wrap`}
-          >
-            {message.text}
-          </div>
+          {message.type === "user" ? (
+            <User className="w-5 h-5 text-white" />
+          ) : (
+            <Bot className="w-5 h-5 text-white" />
+          )}
+        </div>
+        <div
+          className={`${
+            message.type === "user"
+              ? "bg-blue-600 text-white"
+              : message.isError
+              ? "bg-red-900 text-white"
+              : "bg-gray-800 text-gray-100"
+          } rounded-lg p-4 max-w-[80%] whitespace-pre-wrap`}
+        >
+          {message.text}
         </div>
       </div>
-    );
-  };
+    </div>
+  );
 
   return (
     <div className="flex flex-col h-[600px] bg-gray-900 rounded-lg">
@@ -643,6 +534,27 @@ const handlePriceUpdate = async (product, newPrice) => {
         {messages.map((message) => (
           <Message key={message.id} message={message} />
         ))}
+        {isTyping && (
+          <div className="flex items-center space-x-2">
+            <div className="w-8 h-8 rounded-full bg-gray-700 flex items-center justify-center">
+              <Bot className="w-5 h-5 text-white" />
+            </div>
+            <div className="flex space-x-2 bg-gray-800 rounded-lg p-4">
+              <div
+                className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
+                style={{ animationDelay: "0ms" }}
+              />
+              <div
+                className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
+                style={{ animationDelay: "150ms" }}
+              />
+              <div
+                className="w-2 h-2 bg-blue-500 rounded-full animate-bounce"
+                style={{ animationDelay: "300ms" }}
+              />
+            </div>
+          </div>
+        )}
         <div ref={messagesEndRef} />
       </div>
 

@@ -1,10 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Pencil, Trash2, Search, ChevronDown, X } from "lucide-react";
 import axios from "axios";
-import io from "socket.io-client";
 
 const ProductsPage = () => {
-  const socket = io("http://localhost:5000"); // Connect to the socket.io server
   const [products, setProducts] = useState([]); // State to store products
   const [showAddDialog, setShowAddDialog] = useState(false); // State to control add product dialog
   const [searchTerm, setSearchTerm] = useState(""); // State for search functionality
@@ -37,33 +35,6 @@ const ProductsPage = () => {
     fetchProductDetails();
 
     // Listen for real-time updates from the server
-    socket.on("productAdded", (newProduct) => {
-      setProducts((prevProducts) => [...prevProducts, newProduct]); // Add new product to the list
-      console.log("New product added:", newProduct);
-    });
-
-    socket.on("productUpdated", (updatedProduct) => {
-      setProducts((prevProducts) =>
-        prevProducts.map((product) =>
-          product._id === updatedProduct._id ? updatedProduct : product
-        )
-      ); // Update the product in the list
-      console.log("Product updated:", updatedProduct);
-    });
-
-    socket.on("productDeleted", (deletedProductId) => {
-      setProducts((prevProducts) =>
-        prevProducts.filter((product) => product._id !== deletedProductId)
-      ); // Remove the deleted product from the list
-      console.log("Product deleted:", deletedProductId);
-    });
-
-    // Clean up socket listeners on component unmount
-    return () => {
-      socket.off("productAdded");
-      socket.off("productUpdated");
-      socket.off("productDeleted");
-    };
   }, []);
 
   // Handle product deletion
@@ -74,7 +45,10 @@ const ProductsPage = () => {
       );
       console.log("Product deleted successfully:", response.data);
     } catch (err) {
-      console.error("Error deleting product:", err.response?.data || err.message);
+      console.error(
+        "Error deleting product:",
+        err.response?.data || err.message
+      );
     }
   };
 
@@ -116,8 +90,6 @@ const ProductsPage = () => {
       console.error("Error adding product:", err.response?.data || err.message);
     }
   };
-
-  
 
   return (
     <div className="p-6 bg-gray-900 min-h-screen rounded-md">
@@ -201,21 +173,25 @@ const ProductsPage = () => {
                 <td className="px-6 py-4 text-sm text-gray-200">
                   <span
                     className={`px-2 py-1 text-xs rounded-full ${
-                      product.productFreshness === "Fresh" || 'fresh'
+                      product.productFreshness === "Fresh" || "fresh"
                         ? "bg-green-600"
                         : product.freshness === "Very Fresh"
                         ? "bg-emerald-600"
                         : "bg-yellow-600"
                     }`}
                   >
-                    {product.productFreshness.charAt(0).toUpperCase() + product.productFreshness.slice(1) }
+                    {product.productFreshness.charAt(0).toUpperCase() +
+                      product.productFreshness.slice(1)}
                   </span>
                 </td>
                 <td className="px-6 py-4 text-sm text-gray-200 text-right">
                   <button className="p-1 bg-gray-600 rounded hover:bg-gray-500 mr-2">
                     <Pencil className="h-4 w-4" />
                   </button>
-                  <button className="p-1 bg-red-600 rounded hover:bg-red-700" onClick={() =>handleDelete(product.productName)}>
+                  <button
+                    className="p-1 bg-red-600 rounded hover:bg-red-700"
+                    onClick={() => handleDelete(product.productName)}
+                  >
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </td>

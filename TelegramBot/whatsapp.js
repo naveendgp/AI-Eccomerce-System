@@ -68,6 +68,25 @@ bot.onText(/\/start/, (msg) => {
   };
   bot.sendMessage(chatId, welcomeMessage, options);
 });
+bot.onText(/\/help/, (msg) => {
+    const chatId = msg.chat.id;
+    sessions[chatId] = {}; // reset session
+  
+    const welcomeMessage =
+      "Welcome to the Product Bot!\n\nPlease choose a command:";
+    const options = {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "Add Product", callback_data: "addProduct" }],
+          [{ text: "Delete Product", callback_data: "deleteProduct" }],
+          [{ text: "Edit Product", callback_data: "editProduct" }],
+          [{ text: "View All Products", callback_data: "viewProducts" }],
+          [{ text: "View A Product", callback_data: "viewProduct" }],
+        ],
+      },
+    };
+    bot.sendMessage(chatId, welcomeMessage, options);
+  });
 
 // Handle inline button presses (for main commands and suggestion choices)
 bot.on("callback_query", (callbackQuery) => {
@@ -329,8 +348,8 @@ bot.on("message", async (msg) => {
         bot.sendMessage(chatId, "Product not found.");
       }
     } catch (err) {
-      console.error("Error fetching product:", err);
-      bot.sendMessage(chatId, "Failed to fetch product. Please try again.");
+         console.error("Error fetching product:", err);
+          bot.sendMessage(chatId, "Failed to fetch product. Please try again.");
     }
     sessions[chatId] = {};
   }

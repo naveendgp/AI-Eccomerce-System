@@ -12,7 +12,7 @@ const GetProduct = require('./Router/GetProducts');
 const singleProduct = require('./Router/SingleProduct');
 const chatbot = require('./Router/Huggingface');
 const DeleteProduct = require('./Router/DeleteProduct');
-const UpdateProduct = require('./Router/UpdateProduct');
+
 const port = 5000;
 
 const app = express();
@@ -59,7 +59,6 @@ app.use('/addProduct', AddProduct);
 app.use('/getProduct', GetProduct);
 app.use('/singleProduct', singleProduct);
 app.use('/deleteProduct', DeleteProduct);
-app.use('/updateProduct', UpdateProduct);
 app.use('/chatbot', chatbot);
 
 // Start the server
